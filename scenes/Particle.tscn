@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://ravd1lwvis70"]
+
+[ext_resource type="Script" uid="uid://dkplg5b66c87x" path="res://src/particle.gd" id="1_m4sau"]
+
+[node name="Node2D" type="Node2D" unique_id=271031629]
+script = ExtResource("1_m4sau")

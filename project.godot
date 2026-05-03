@@ -11,8 +11,8 @@ config_version=5
 [application]
 
 config/name="fluid-simulation"
+run/main_scene="uid://c4mc3walo5kva"
 config/features=PackedStringArray("4.6", "Forward Plus")
-config/icon="res://icon.svg"
 
 [physics]
 

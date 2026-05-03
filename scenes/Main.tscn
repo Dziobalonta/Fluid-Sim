@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://c4mc3walo5kva"]
+
+[ext_resource type="Script" uid="uid://dkplg5b66c87x" path="res://src/particle.gd" id="1_o5qli"]
+
+[node name="Node2D" type="Node2D" unique_id=635007222]
+
+[node name="Particle" type="Node2D" parent="." unique_id=858967619]
+position = Vector2(594, 310)
+script = ExtResource("1_o5qli")
+metadata/_custom_type_script = "uid://dkplg5b66c87x"
