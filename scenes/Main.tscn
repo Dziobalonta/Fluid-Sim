@@ -1,10 +1,11 @@
 [gd_scene format=3 uid="uid://c4mc3walo5kva"]
 
-[ext_resource type="Script" uid="uid://dkplg5b66c87x" path="res://src/particle.gd" id="1_elqb8"]
 [ext_resource type="Script" uid="uid://cevw28jmaygdy" path="res://src/main.gd" id="1_rvslj"]
+[ext_resource type="PackedScene" uid="uid://ravd1lwvis70" path="res://scenes/Particle.tscn" id="2_0bbpv"]
 
 [node name="Node2D" type="Node2D" unique_id=635007222]
 script = ExtResource("1_rvslj")
+particle_scene = ExtResource("2_0bbpv")
 
 [node name="FluidContainer" type="ReferenceRect" parent="." unique_id=345993181]
 offset_left = 294.0
@@ -14,8 +15,3 @@ offset_bottom = 551.0
 border_color = Color(0.7716799, 0.7716856, 0.77168405, 1)
 border_width = 2.9
 metadata/_edit_use_anchors_ = true
-
-[node name="Particle" type="Node2D" parent="." unique_id=858967619]
-position = Vector2(594, 310)
-script = ExtResource("1_elqb8")
-metadata/_custom_type_script = "uid://dkplg5b66c87x"
