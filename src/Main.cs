@@ -158,12 +158,22 @@ public partial class Main : Node2D
 
 			float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
 			float density = densities[otherPart];
-			pressureForce += ConvertDensityToPressure(density) * dir * slope * mass / density;
+			float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
+			pressureForce += sharedPressure * dir * slope * mass / density;
 
 		}
 
 		return pressureForce;
 	}
+
+	float CalculateSharedPressure(float densityA, float densityB)
+	{
+		float pressureA = ConvertDensityToPressure(densityA);
+		float pressureB = ConvertDensityToPressure(densityB);
+		
+		return (pressureA + pressureB) / 2; 
+	}
+
 
 	Vector2 GetRandomDir()
 	{
