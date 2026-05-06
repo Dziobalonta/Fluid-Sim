@@ -16,6 +16,9 @@ public partial class Particle : Node2D
 
 	[Export] public Gradient DensityGradient;
 
+	public Vector2 PressureAcceleration = Vector2.Zero;
+
+
 	public void SetBoundary(Rect2 newBoundary) => Boundary = newBoundary;
 
 	public override void _Draw()
@@ -31,7 +34,8 @@ public partial class Particle : Node2D
 	{
 		float dt = (float)delta;
 
-		Velocity += Gravity * dt;
+		Velocity += PressureAcceleration * dt;
+		// Velocity += Gravity * dt;
 		Position += Velocity * dt;
 
 		CheckBoundary();
