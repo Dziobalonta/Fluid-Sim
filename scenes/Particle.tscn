@@ -1,11 +1,6 @@
 [gd_scene format=3 uid="uid://ravd1lwvis70"]
 
-[ext_resource type="Script" uid="uid://dkplg5b66c87x" path="res://src/particle.gd" id="1_m4sau"]
-
-[sub_resource type="Gradient" id="Gradient_m4sau"]
-offsets = PackedFloat32Array(0, 0.3429878, 0.69664633, 1)
-colors = PackedColorArray(0.13710234, 0.27792004, 0.8185257, 1, 0.22958016, 0.68659973, 0.35091594, 1, 0.84278786, 0.7826275, 0.22419655, 1, 0.9478485, 0.2167987, 0.28131494, 1)
+[ext_resource type="Script" uid="uid://x5ccthfysoal" path="res://src/Particle.cs" id="1_m4sau"]
 
 [node name="Node2D" type="Node2D" unique_id=271031629]
 script = ExtResource("1_m4sau")
-density_gradient = SubResource("Gradient_m4sau")

@@ -12,7 +12,15 @@ config_version=5
 
 config/name="fluid-simulation"
 run/main_scene="uid://c4mc3walo5kva"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.6", "C#", "Forward Plus")
+
+[debug]
+
+settings/stdout/print_fps=true
+
+[dotnet]
+
+project/assembly_name="fluid-simulation"
 
 [physics]
 
