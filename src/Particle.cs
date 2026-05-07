@@ -14,7 +14,7 @@ public partial class Particle : Node2D
 	// Normalization happens once, not in _Draw
 	public float Density { set => NormalizedDensity = Math.Clamp(value / 20f, 0f, 1f); }
 
-	[Export] public Gradient DensityGradient;
+	public Gradient DensityGradient;
 
 	public Vector2 PressureAcceleration = Vector2.Zero;
 
@@ -35,7 +35,7 @@ public partial class Particle : Node2D
 		float dt = (float)delta;
 
 		Velocity += PressureAcceleration * dt;
-		// Velocity += Gravity * dt;
+		//Velocity += Gravity * dt;
 		Position += Velocity * dt;
 
 		CheckBoundary();

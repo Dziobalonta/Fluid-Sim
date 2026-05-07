@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://c4mc3walo5kva"]
 
 [ext_resource type="Script" uid="uid://5nx77odqh0tw" path="res://src/Main.cs" id="1_elqb8"]
-[ext_resource type="PackedScene" uid="uid://ravd1lwvis70" path="res://scenes/Particle.tscn" id="2_0bbpv"]
+[ext_resource type="Gradient" uid="uid://ckumr1uytm4v0" path="res://resources/gradient.tres" id="2_rvslj"]
 
 [node name="Node2D" type="Node2D" unique_id=635007222]
 script = ExtResource("1_elqb8")
-ParticleScene = ExtResource("2_0bbpv")
+ParticleGardient = ExtResource("2_rvslj")
 
 [node name="FluidContainer" type="ReferenceRect" parent="." unique_id=345993181]
 offset_left = 294.0

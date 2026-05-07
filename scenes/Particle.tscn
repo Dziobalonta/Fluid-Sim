@@ -1,8 +1,0 @@
-[gd_scene format=3 uid="uid://ravd1lwvis70"]
-
-[ext_resource type="Script" uid="uid://x5ccthfysoal" path="res://src/Particle.cs" id="1_m4sau"]
-[ext_resource type="Gradient" uid="uid://ckumr1uytm4v0" path="res://resources/gradient.tres" id="2_36wu5"]
-
-[node name="Node2D" type="Node2D" unique_id=271031629]
-script = ExtResource("1_m4sau")
-DensityGradient = ExtResource("2_36wu5")

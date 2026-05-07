@@ -6,18 +6,19 @@ using System.Threading.Tasks;
 
 public partial class Main : Node2D
 {
-	[Export] public PackedScene ParticleScene; 
 	[Export] public int ParticleCount = 200; 
 	
 	[Export] public int SpawnBatchSize = 15; // How many particles in one frame
-	[Export] public float mass = 1.0f; 
+	[Export] public float mass = 1.0f;
+
+	[Export] public Gradient ParticleGardient;
 
 	private bool isSpawning = true;
 	private int spawnedCount = 0;
 	private Rect2 screenRect;
 	private Rect2 spawnArea;
 
-	public float SmoothingRadius = 30.0f; 
+	public float SmoothingRadius = 45.0f; 
 
 	private List<Particle> particles = new List<Particle>(); 
 	private Vector2[] positions; 
@@ -27,7 +28,7 @@ public partial class Main : Node2D
 	private float scale;
 
 	private float targetDensity = 1.0f;
-	private float pressureMultiplier = 20.0f;
+	private float pressureMultiplier = 10.0f;
 
 	public override void _Ready()
 	{
@@ -57,7 +58,8 @@ public partial class Main : Node2D
 
 		for (int i = spawnedCount; i < limit; i++)
 		{
-			Particle p = ParticleScene.Instantiate<Particle>(); 
+			Particle p = new Particle();
+			p.DensityGradient = ParticleGardient;
 			
 			float randX = (float)GD.RandRange(spawnArea.Position.X, spawnArea.End.X); 
 			float randY = (float)GD.RandRange(spawnArea.Position.Y, spawnArea.End.Y); 
@@ -166,11 +168,12 @@ public partial class Main : Node2D
 		return pressureForce;
 	}
 
+	// Shared pressure method to simulate 3rd law of Motion
 	float CalculateSharedPressure(float densityA, float densityB)
 	{
 		float pressureA = ConvertDensityToPressure(densityA);
 		float pressureB = ConvertDensityToPressure(densityB);
-		
+
 		return (pressureA + pressureB) / 2; 
 	}
 
