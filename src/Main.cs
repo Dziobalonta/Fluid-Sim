@@ -26,13 +26,17 @@ public partial class Main : Node2D
 	private float targetDensity = 1.0f;
 	private float pressureMultiplier = 10.0f;
 
-	private float _printTimer = 0f;
+	private float printTimer = 0f;
+	private float dt;
 	// Grid Optimization Variables
 	private Entry[] spatialLookup;
 	private int[] startIndices;
 
 	private int[] counts;
 	private Entry[] sortBuffer;
+
+	private float mouseForceRadius = 200f;
+	private float mouseForceStrength = 5500f;
 
 	// The 9 neighbor cells (including the center cell) to search
 	private readonly (int x, int y)[] cellOffsets = {
@@ -106,21 +110,23 @@ public partial class Main : Node2D
 
     public override void _Process(double delta)
     {
-		_printTimer += (float)delta;
-		if (_printTimer >= 1f)
+		printTimer += (float)delta;
+		if (printTimer >= 1f)
 		{
 			GD.Print(Engine.GetFramesPerSecond());
-			_printTimer = 0f;
+			printTimer = 0f;
 		}
     }
 
 
 	public override void _PhysicsProcess(double delta)
 	{
+		dt = (float)delta;
+
 		// Updating Spatial Grid BEFORE physics calculations
 		UpdateSpatialLookup();
 		
-		// Caslculating physics
+		// Calculating physics
 		Parallel.For(0, ParticleCount, i => 
 		{
 			densities[i] = CalculateDensity(positions[i]); 
@@ -130,13 +136,25 @@ public partial class Main : Node2D
 		{
 			Vector2 pressureForce = ConvertDensityToPressure(i);
 			Vector2 pressureAcceleration = pressureForce / densities[i];
-			particles[i].Velocity += pressureAcceleration * (float)delta;
+			particles[i].Velocity += pressureAcceleration * dt;
 		}); 
 
 		for (int i = 0; i < ParticleCount; i++) 
 		{
-			positions[i] += particles[i].Velocity * (float)delta;
+			// particles[i].Velocity.Y += 981f * dt; // Gravity
+			positions[i] += particles[i].Velocity * dt;
         	ResolveWallCollision(ref positions[i], ref particles[i].Velocity, particles[i].Radius, particles[i].Damping);
+		}
+
+		if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right))
+		{
+			Vector2 mousePos = GetGlobalMousePosition();
+			float strength = Input.IsMouseButtonPressed(MouseButton.Left) ? mouseForceStrength : -mouseForceStrength;
+
+			for (int i = 0; i < ParticleCount; i++)
+			{
+				particles[i].Velocity += InteractionForce(mousePos, mouseForceRadius, strength, i) * dt;
+			}
 		}
 
 		QueueRedraw();
@@ -145,13 +163,31 @@ public partial class Main : Node2D
 	{
 		for (int i = 0; i < ParticleCount; i++)
 		{
-			float normalized = Math.Clamp(densities[i] / 20f, 0f, 1f);
+			float speed = particles[i].Velocity.Length();
+			float normalized = Math.Clamp(speed / 1000f, 0f, 1f);
 			Color c = ParticleGardient?.Sample(normalized) ?? Colors.WhiteSmoke;
 			DrawCircle(positions[i], 7f, c);
 		}
 	}
 	#endregion
 
+	#region Collisions
+	Vector2 InteractionForce(Vector2 inputPos, float radius, float strength, int particleIndex)
+	{
+		Vector2 interactionForce = Vector2.Zero;
+		Vector2 offset = inputPos - positions[particleIndex];
+		float sqrDst = offset.Dot(offset);
+
+		if (sqrDst < radius * radius)
+		{
+			float dst = (float) Math.Sqrt(sqrDst);
+			Vector2 dirToInputPoint = dst <= float.Epsilon ? Vector2.Zero : offset / dst;
+			float centreT = 1 - dst / radius;
+			interactionForce += (dirToInputPoint * strength - particles[particleIndex].Velocity) * centreT;
+		}
+
+		return interactionForce;
+	}
 	private void ResolveWallCollision(ref Vector2 pos, ref Vector2 vel, float radius, float damping)
 	{
 		// Right Wall
@@ -175,6 +211,7 @@ public partial class Main : Node2D
 			pos.Y = screenRect.Position.Y + radius; vel.Y *= -damping;
 		}
 	}
+	#endregion
 
 	#region Smoothing Functions
 	public float SmoothingFunction(float dst, float radius) 
