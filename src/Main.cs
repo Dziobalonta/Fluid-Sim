@@ -17,7 +17,8 @@ public partial class Main : Node2D
 	public float SmoothingRadius = 45.0f; 
 
 	private List<Particle> particles = new List<Particle>(); 
-	private Vector2[] positions; 
+	private Vector2[] positions;
+	private Vector2[] predictedPositions;
 	private float[] densities; 
 
 	private float volume; 
@@ -35,8 +36,8 @@ public partial class Main : Node2D
 	private int[] counts;
 	private Entry[] sortBuffer;
 
-	private float mouseForceRadius = 200f;
-	private float mouseForceStrength = 5500f;
+	private float mouseForceRadius = 125f;
+	private float mouseForceStrength = 4500f;
 
 	// The 9 neighbor cells (including the center cell) to search
 	private readonly (int x, int y)[] cellOffsets = {
@@ -78,7 +79,8 @@ public partial class Main : Node2D
 			screenRect.Size.Y - (padding * 2)
 		);
 
-		positions = new Vector2[ParticleCount]; 
+		positions = new Vector2[ParticleCount];
+		predictedPositions = new Vector2[ParticleCount];
 		densities = new float[ParticleCount];
 
 		spatialLookup = new Entry[ParticleCount];
@@ -123,13 +125,20 @@ public partial class Main : Node2D
 	{
 		dt = (float)delta;
 
+		// Calculate position predictions
+		Parallel.For(0, ParticleCount, i =>
+		{
+			// particles[i].Velocity.Y += 981f * dt; // Gravity
+			predictedPositions[i] = positions[i] + particles[i].Velocity * dt;
+		});
+
 		// Updating Spatial Grid BEFORE physics calculations
 		UpdateSpatialLookup();
 		
 		// Calculating physics
 		Parallel.For(0, ParticleCount, i => 
 		{
-			densities[i] = CalculateDensity(positions[i]); 
+			densities[i] = CalculateDensity(predictedPositions[i]); 
 		});
 
 		Parallel.For(0, ParticleCount, i => 
@@ -138,13 +147,6 @@ public partial class Main : Node2D
 			Vector2 pressureAcceleration = pressureForce / densities[i];
 			particles[i].Velocity += pressureAcceleration * dt;
 		}); 
-
-		for (int i = 0; i < ParticleCount; i++) 
-		{
-			// particles[i].Velocity.Y += 981f * dt; // Gravity
-			positions[i] += particles[i].Velocity * dt;
-        	ResolveWallCollision(ref positions[i], ref particles[i].Velocity, particles[i].Radius, particles[i].Damping);
-		}
 
 		if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right))
 		{
@@ -157,6 +159,13 @@ public partial class Main : Node2D
 			}
 		}
 
+		// Update positions
+		for (int i = 0; i < ParticleCount; i++) 
+		{
+			positions[i] += particles[i].Velocity * dt;
+        	ResolveWallCollision(ref positions[i], ref particles[i].Velocity, particles[i].Radius, particles[i].Damping);
+		}
+
 		QueueRedraw();
 	}
 	public override void _Draw()
@@ -164,7 +173,7 @@ public partial class Main : Node2D
 		for (int i = 0; i < ParticleCount; i++)
 		{
 			float speed = particles[i].Velocity.Length();
-			float normalized = Math.Clamp(speed / 1000f, 0f, 1f);
+			float normalized = Math.Clamp(speed / 500f, 0f, 1f);
 			Color c = ParticleGardient?.Sample(normalized) ?? Colors.WhiteSmoke;
 			DrawCircle(positions[i], 7f, c);
 		}
@@ -267,7 +276,7 @@ public partial class Main : Node2D
 	public Vector2 ConvertDensityToPressure(int particleIndex)
 	{
 		Vector2 pressureForce = Vector2.Zero;
-		Vector2 samplePoint = positions[particleIndex];
+		Vector2 samplePoint = predictedPositions[particleIndex];
 		float sqrRadius = SmoothingRadius * SmoothingRadius;
 		(int centerX, int centerY) = PositionToCellCoord(samplePoint, SmoothingRadius);
 
@@ -286,7 +295,7 @@ public partial class Main : Node2D
 				int otherPart = spatialLookup[i].ParticleIndex;
 				if (particleIndex == otherPart) continue;
 
-				Vector2 offset = positions[otherPart] - positions[particleIndex];
+				Vector2 offset = predictedPositions[otherPart] - predictedPositions[particleIndex];
 				float sqrDst = offset.LengthSquared();
 
 				if (sqrDst <= sqrRadius)
@@ -365,7 +374,7 @@ public partial class Main : Node2D
 
 		Parallel.For(0, ParticleCount, i =>
 		{
-			(int cellX, int cellY) = PositionToCellCoord(positions[i], SmoothingRadius);
+			(int cellX, int cellY) = PositionToCellCoord(predictedPositions[i], SmoothingRadius);
 			uint cellKey = GetKeyFromHash(HashCell(cellX, cellY));
 			spatialLookup[i] = new Entry(i, cellKey);
 		});
