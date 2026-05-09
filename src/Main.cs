@@ -56,7 +56,14 @@ public partial class Main : Node2D
 	public override void _Ready()
 	{
 		screenRect = GetViewportRect(); 
-		spawnArea = new Rect2(screenRect.Size.X / 2.0f - 150.0f, screenRect.Size.Y / 2.0f, 300.0f, 300.0f); 
+		float padding = 20.0f; 
+
+		spawnArea = new Rect2(
+			padding,
+			padding,
+			screenRect.Size.X - (padding * 2),
+			screenRect.Size.Y - (padding * 2)
+		);
 
 		positions = new Vector2[ParticleCount]; 
 		densities = new float[ParticleCount];
@@ -74,8 +81,10 @@ public partial class Main : Node2D
 			Particle p = new Particle();
 			p.DensityGradient = ParticleGardient;
 			
-			float randX = (float)GD.RandRange(spawnArea.Position.X, spawnArea.End.X); 
-			float randY = (float)GD.RandRange(spawnArea.Position.Y, spawnArea.End.Y); 
+			Random rand = Random.Shared;
+
+			float randX = spawnArea.Position.X + (float)rand.NextDouble() * spawnArea.Size.X;
+			float randY = spawnArea.Position.Y + (float)rand.NextDouble() * spawnArea.Size.Y;
 			
 			p.Position = new Vector2(randX, randY); 
 			p.SetBoundary(screenRect); 
@@ -214,16 +223,25 @@ public partial class Main : Node2D
 			if(particleIndex == otherPart) continue;
 			Vector2 offset = positions[otherPart] - positions[particleIndex];
 
+			float sqrDst = offset.LengthSquared();
 
-			float dst = offset.Length();
-
-			Vector2 dir = (dst  == 0) ?  GetRandomDir() : offset / dst;
-
-			float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
-			float density = densities[otherPart];
-			float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
-			pressureForce += sharedPressure * dir * slope * mass / density;
-
+			if (sqrDst > 0)
+			{
+				float dst = (float)Math.Sqrt(sqrDst);
+				Vector2 dir = offset / dst;
+				float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
+				float density = densities[otherPart];
+				float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
+				pressureForce += sharedPressure * dir * slope * mass / density;
+			}
+			else
+			{
+				Vector2 dir = GetRandomDir();
+				float slope = SmoothingFunctionDerivative(0, SmoothingRadius);
+				float density = densities[otherPart];
+				float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
+				pressureForce += sharedPressure * dir * slope * mass / density;
+			}
 		}
 
 		return pressureForce;

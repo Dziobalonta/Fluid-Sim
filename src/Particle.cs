@@ -35,7 +35,7 @@ public partial class Particle : Node2D
 		float dt = (float)delta;
 
 		Velocity += PressureAcceleration * dt;
-		//Velocity += Gravity * dt;
+		// Velocity += Gravity * dt;
 		Position += Velocity * dt;
 
 		CheckBoundary();
