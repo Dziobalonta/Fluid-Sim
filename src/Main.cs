@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 public partial class Main : Node2D
 {
-	[Export] public int ParticleCount = 200; 
+	#region Variables
+	[Export] public int ParticleCount = 300; 
 	[Export] public float mass = 1.0f;
 	[Export] public Gradient ParticleGardient;
 
@@ -25,9 +26,14 @@ public partial class Main : Node2D
 	private float targetDensity = 1.0f;
 	private float pressureMultiplier = 10.0f;
 
+	private float _printTimer = 0f;
 	// Grid Optimization Variables
 	private Entry[] spatialLookup;
 	private int[] startIndices;
+
+	private int[] counts;
+	private Entry[] sortBuffer;
+
 	// The 9 neighbor cells (including the center cell) to search
 	private readonly (int x, int y)[] cellOffsets = {
 		(-1, 1), (0, 1), (1, 1),
@@ -53,6 +59,9 @@ public partial class Main : Node2D
 			return CellKey.CompareTo(other.CellKey);
 		}
 	}
+	#endregion
+
+	#region Game Loops
 	public override void _Ready()
 	{
 		screenRect = GetViewportRect(); 
@@ -70,6 +79,9 @@ public partial class Main : Node2D
 
 		spatialLookup = new Entry[ParticleCount];
 		startIndices = new int[ParticleCount];
+
+		counts = new int[ParticleCount];
+		sortBuffer = new Entry[ParticleCount];
 		
 		// Pre-calculating once a part of Smooting Function's equation
 		volume = (float) ((Math.PI * Math.Pow(SmoothingRadius, 4)) / 6.0f);
@@ -79,34 +91,34 @@ public partial class Main : Node2D
 		for (int i = 0; i < ParticleCount; i++)
 		{
 			Particle p = new Particle();
-			p.DensityGradient = ParticleGardient;
 			
 			Random rand = Random.Shared;
 
 			float randX = spawnArea.Position.X + (float)rand.NextDouble() * spawnArea.Size.X;
 			float randY = spawnArea.Position.Y + (float)rand.NextDouble() * spawnArea.Size.Y;
 			
-			p.Position = new Vector2(randX, randY); 
-			p.SetBoundary(screenRect); 
-			
-			AddChild(p); 
+			positions[i] = new Vector2(randX, randY);
+
 			particles.Add(p); 
-			
-			positions[i] = p.Position;
 		}
 		
 	}
 
+    public override void _Process(double delta)
+    {
+		_printTimer += (float)delta;
+		if (_printTimer >= 1f)
+		{
+			GD.Print(Engine.GetFramesPerSecond());
+			_printTimer = 0f;
+		}
+    }
+
+
 	public override void _PhysicsProcess(double delta)
 	{
-
-		for (int i = 0; i < ParticleCount; i++) 
-		{
-			positions[i] = particles[i].Position; 
-		}
-
 		// Updating Spatial Grid BEFORE physics calculations
-		UpdateSpacialLookup();
+		UpdateSpatialLookup();
 		
 		// Caslculating physics
 		Parallel.For(0, ParticleCount, i => 
@@ -123,10 +135,48 @@ public partial class Main : Node2D
 
 		for (int i = 0; i < ParticleCount; i++) 
 		{
-			particles[i].Density = densities[i]; 
+			positions[i] += particles[i].Velocity * (float)delta;
+        	ResolveWallCollision(ref positions[i], ref particles[i].Velocity, particles[i].Radius, particles[i].Damping);
+		}
+
+		QueueRedraw();
+	}
+	public override void _Draw()
+	{
+		for (int i = 0; i < ParticleCount; i++)
+		{
+			float normalized = Math.Clamp(densities[i] / 20f, 0f, 1f);
+			Color c = ParticleGardient?.Sample(normalized) ?? Colors.WhiteSmoke;
+			DrawCircle(positions[i], 7f, c);
+		}
+	}
+	#endregion
+
+	private void ResolveWallCollision(ref Vector2 pos, ref Vector2 vel, float radius, float damping)
+	{
+		// Right Wall
+		if (pos.X > screenRect.End.X - radius) {
+
+			pos.X = screenRect.End.X - radius; vel.X *= -damping;
+		}
+		// Left Wall
+		else if (pos.X < screenRect.Position.X + radius) {
+
+			pos.X = screenRect.Position.X + radius; vel.X *= -damping;
+		}
+		// Bottom
+		if (pos.Y > screenRect.End.Y - radius) {
+			
+			pos.Y = screenRect.End.Y - radius; vel.Y *= -damping;	
+		}
+		// Top
+		else if (pos.Y < screenRect.Position.Y + radius)
+		{
+			pos.Y = screenRect.Position.Y + radius; vel.Y *= -damping;
 		}
 	}
 
+	#region Smoothing Functions
 	public float SmoothingFunction(float dst, float radius) 
 	{
 		if (dst >= radius) return 0; 
@@ -140,7 +190,9 @@ public partial class Main : Node2D
 
 		return (dst - radius) * scale;
 	}
+	#endregion
 
+	#region Density and Pressure
 	public float CalculateDensity(Vector2 samplePoint) 
 	{
 		float density = 0.0f; 
@@ -263,13 +315,15 @@ public partial class Main : Node2D
 		return (pressureA + pressureB) / 2; 
 	}
 
+	#endregion
+
 	Vector2 GetRandomDir()
 	{
 		return Vector2.FromAngle((float)Random.Shared.NextDouble() * (float) Math.Tau);
 	}
 
 	#region Grid Optimization
-	public void UpdateSpacialLookup()
+	public void UpdateSpatialLookup()
 	{
 
 		Parallel.For(0, ParticleCount, i =>
@@ -277,22 +331,33 @@ public partial class Main : Node2D
 			(int cellX, int cellY) = PositionToCellCoord(positions[i], SmoothingRadius);
 			uint cellKey = GetKeyFromHash(HashCell(cellX, cellY));
 			spatialLookup[i] = new Entry(i, cellKey);
-			startIndices[i] = int.MaxValue; // reset start index
 		});
 
-		Array.Sort(spatialLookup);
-		
-		// Calculate start indices for each unique cell key in the spacial lookup
-		Parallel.For(0, ParticleCount, i =>
+		Array.Clear(counts, 0, ParticleCount);
+
+		// Count entries per key
+		for (int i = 0; i < ParticleCount; i++)
+			counts[spatialLookup[i].CellKey]++;
+
+
+		// Empty keys get int.MaxValue so the caller can skip them cheaply
+		int total = 0;
+		for (int key = 0; key < ParticleCount; key++)
 		{
-			uint key = spatialLookup[i].CellKey;
-			uint keyPrev = i == 0 ? uint.MaxValue : spatialLookup[i-1].CellKey;
-			if (key != keyPrev)
-			{
-				startIndices[key] = i;
-			}
-		});
-	}
+			startIndices[key] = counts[key] > 0 ? total : int.MaxValue;
+			int c = counts[key];
+			counts[key] = total;
+			total += c;
+		}
+
+		// Scatter into sorted order — no comparison needed
+		for (int i = 0; i < ParticleCount; i++)
+			sortBuffer[counts[spatialLookup[i].CellKey]++] = spatialLookup[i];
+
+		// Swap buffers
+		(spatialLookup, sortBuffer) = (sortBuffer, spatialLookup);
+
+		}
 
 	// Convert position of the cell to the coordinates
 	public (int x, int y) PositionToCellCoord(Vector2 point, float radius)
