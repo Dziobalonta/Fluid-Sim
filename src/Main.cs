@@ -1,8 +1,6 @@
 using Godot;
-using System.Collections.Generic;
 using System;
 using System.Threading.Tasks;
-
 
 public partial class Main : Node2D
 {
@@ -10,16 +8,18 @@ public partial class Main : Node2D
 	[Export] public int ParticleCount = 300; 
 	[Export] public float mass = 1.0f;
 	[Export] public Gradient ParticleGardient;
-
+	
 	private Rect2 screenRect;
 	private Rect2 spawnArea;
 
 	public float SmoothingRadius = 45.0f; 
 
-	private List<Particle> particles = new List<Particle>(); 
 	private Vector2[] positions;
 	private Vector2[] predictedPositions;
 	private float[] densities; 
+	private Vector2[] velocities;
+	private float particleRadius = 7f;
+	private float particleDamping = 0.6f;
 
 	private float volume; 
 	private float scale;
@@ -38,6 +38,8 @@ public partial class Main : Node2D
 
 	private float mouseForceRadius = 125f;
 	private float mouseForceStrength = 4500f;
+
+	private Color[] cachedGradient = new Color[256];
 
 	// The 9 neighbor cells (including the center cell) to search
 	private readonly (int x, int y)[] cellOffsets = {
@@ -81,6 +83,7 @@ public partial class Main : Node2D
 
 		positions = new Vector2[ParticleCount];
 		predictedPositions = new Vector2[ParticleCount];
+		velocities = new Vector2[ParticleCount];
 		densities = new float[ParticleCount];
 
 		spatialLookup = new Entry[ParticleCount];
@@ -88,6 +91,11 @@ public partial class Main : Node2D
 
 		counts = new int[ParticleCount];
 		sortBuffer = new Entry[ParticleCount];
+
+		// Pre-cache the gradient
+		for (int i = 0; i < 256; i++) {
+        	cachedGradient[i] = ParticleGardient.Sample(i / 255f);
+    	} 
 		
 		// Pre-calculating once a part of Smooting Function's equation
 		volume = (float) ((Math.PI * Math.Pow(SmoothingRadius, 4)) / 6.0f);
@@ -95,17 +103,14 @@ public partial class Main : Node2D
 
 		// Spawn all particles
 		for (int i = 0; i < ParticleCount; i++)
-		{
-			Particle p = new Particle();
-			
+		{		
 			Random rand = Random.Shared;
 
 			float randX = spawnArea.Position.X + (float)rand.NextDouble() * spawnArea.Size.X;
 			float randY = spawnArea.Position.Y + (float)rand.NextDouble() * spawnArea.Size.Y;
 			
 			positions[i] = new Vector2(randX, randY);
-
-			particles.Add(p); 
+			velocities[i] = Vector2.Zero;
 		}
 		
 	}
@@ -129,7 +134,7 @@ public partial class Main : Node2D
 		Parallel.For(0, ParticleCount, i =>
 		{
 			// particles[i].Velocity.Y += 981f * dt; // Gravity
-			predictedPositions[i] = positions[i] + particles[i].Velocity * dt;
+			predictedPositions[i] = positions[i] + velocities[i] * dt;
 		});
 
 		// Updating Spatial Grid BEFORE physics calculations
@@ -145,7 +150,7 @@ public partial class Main : Node2D
 		{
 			Vector2 pressureForce = ConvertDensityToPressure(i);
 			Vector2 pressureAcceleration = pressureForce / densities[i];
-			particles[i].Velocity += pressureAcceleration * dt;
+			velocities[i] += pressureAcceleration * dt;
 		}); 
 
 		if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right))
@@ -155,15 +160,15 @@ public partial class Main : Node2D
 
 			for (int i = 0; i < ParticleCount; i++)
 			{
-				particles[i].Velocity += InteractionForce(mousePos, mouseForceRadius, strength, i) * dt;
+				velocities[i] += InteractionForce(mousePos, mouseForceRadius, strength, i) * dt;
 			}
 		}
 
 		// Update positions
 		for (int i = 0; i < ParticleCount; i++) 
 		{
-			positions[i] += particles[i].Velocity * dt;
-        	ResolveWallCollision(ref positions[i], ref particles[i].Velocity, particles[i].Radius, particles[i].Damping);
+			positions[i] += velocities[i] * dt;
+        	ResolveWallCollision(ref positions[i], ref velocities[i], particleRadius, particleDamping);
 		}
 
 		QueueRedraw();
@@ -172,10 +177,9 @@ public partial class Main : Node2D
 	{
 		for (int i = 0; i < ParticleCount; i++)
 		{
-			float speed = particles[i].Velocity.Length();
-			float normalized = Math.Clamp(speed / 500f, 0f, 1f);
-			Color c = ParticleGardient?.Sample(normalized) ?? Colors.WhiteSmoke;
-			DrawCircle(positions[i], 7f, c);
+			float speed = velocities[i].Length(); // (See point 2 about velocities)
+			int colorIndex = (int)Math.Clamp((speed / 500f) * 255f, 0, 255);
+			DrawCircle(positions[i], 7f, cachedGradient[colorIndex]);
 		}
 	}
 	#endregion
@@ -192,7 +196,7 @@ public partial class Main : Node2D
 			float dst = (float) Math.Sqrt(sqrDst);
 			Vector2 dirToInputPoint = dst <= float.Epsilon ? Vector2.Zero : offset / dst;
 			float centreT = 1 - dst / radius;
-			interactionForce += (dirToInputPoint * strength - particles[particleIndex].Velocity) * centreT;
+			interactionForce += (dirToInputPoint * strength - velocities[particleIndex]) * centreT;
 		}
 
 		return interactionForce;
