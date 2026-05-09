@@ -4,7 +4,7 @@ using System;
 public partial class Particle : Node2D
 {
 	public Vector2 Velocity = Vector2.Zero;
-	public float Radius = 10f;
+	public float Radius = 7f;
 	public float Damping = 0.6f;
 	public Rect2 Boundary;
 	public Vector2 Gravity = new Vector2(0f, 981f);
