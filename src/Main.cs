@@ -16,7 +16,7 @@ public partial class Main : Node2D
 	[Export] public int ParticleCount = 3000; 
 	[Export] public float mass = 1.0f;
 	[Export] public Gradient ParticleGardient;
-	public float targetDensity = 4.0f;
+	public float targetDensity = 5.0f;
 	public float pressureMultiplier = 50.0f;
 	private Rect2 screenRect;
 	private Rect2 spawnArea;
@@ -33,7 +33,7 @@ public partial class Main : Node2D
 	private float volume; 
 	private float scale;
 
-	public float gravity = 350.0f;    // real-world gravity constant 
+	public float gravity = 250.0f;    // real-world gravity constant 
 
 	private float printTimer = 0f;
 	private float dt;
