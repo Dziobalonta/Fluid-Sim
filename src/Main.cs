@@ -39,7 +39,7 @@ public partial class Main : Node2D
 
 	private float scale;
 
-	public float viscosityStrength = 2.5f;
+	public float viscosityStrength = 3.5f;
 	
 	public float gravity = 350.0f;
 
