@@ -3,8 +3,13 @@
 [ext_resource type="Script" uid="uid://5nx77odqh0tw" path="res://src/Main.cs" id="1_elqb8"]
 [ext_resource type="Gradient" uid="uid://ckumr1uytm4v0" path="res://resources/gradient.tres" id="2_rvslj"]
 
-[node name="Node2D" type="Node2D" unique_id=635007222]
+[node name="Node2D" type="Node2D" unique_id=635007222 node_paths=PackedStringArray("TargetDSlider", "PressureMSlider", "GravitySlider", "DampingSlider", "SmoothingFunSlider")]
 script = ExtResource("1_elqb8")
+TargetDSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/TargetDSlider")
+PressureMSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/PressureMSlider")
+GravitySlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/GravitySlider")
+DampingSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/DampingSlider")
+SmoothingFunSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/SmoothingFunSlider")
 ParticleGardient = ExtResource("2_rvslj")
 
 [node name="FluidContainer" type="ReferenceRect" parent="." unique_id=345993181]
@@ -15,3 +20,73 @@ offset_bottom = 551.0
 border_color = Color(0.7716799, 0.7716856, 0.77168405, 1)
 border_width = 2.9
 metadata/_edit_use_anchors_ = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1760151326]
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer" unique_id=1947998364]
+offset_left = 9.0
+offset_top = 10.0
+offset_right = 256.0
+offset_bottom = 181.0
+alignment = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/HBoxContainer" unique_id=1778733542]
+layout_mode = 2
+
+[node name="TargetDLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=816031302]
+layout_mode = 2
+text = "Target Density"
+expand_to_text_length = true
+
+[node name="PressureMLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=1494399079]
+layout_mode = 2
+text = "Pressure Multiplier"
+expand_to_text_length = true
+
+[node name="GravityLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=423893660]
+layout_mode = 2
+text = "Gravity"
+expand_to_text_length = true
+
+[node name="DampingLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=1408168436]
+layout_mode = 2
+text = "Particle Damping"
+expand_to_text_length = true
+
+[node name="SmoothingFunLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=736998225]
+layout_mode = 2
+text = "Smoothing Radius"
+expand_to_text_length = true
+
+[node name="VBoxContainer2" type="VBoxContainer" parent="CanvasLayer/HBoxContainer" unique_id=1921721001]
+layout_mode = 2
+
+[node name="TargetDSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=2081975398]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2
+
+[node name="PressureMSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=854519221]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2
+
+[node name="GravitySlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=792674871]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2
+
+[node name="DampingSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=142021206]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2
+
+[node name="SmoothingFunSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=234801614]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2

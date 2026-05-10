@@ -4,34 +4,42 @@ using System.Threading.Tasks;
 
 public partial class Main : Node2D
 {
+	[ExportGroup("UI Controls")]
+	[Export] public SpinBox TargetDSlider;
+    [Export] public SpinBox PressureMSlider;
+    [Export] public SpinBox GravitySlider;
+    [Export] public SpinBox DampingSlider;
+    [Export] public SpinBox SmoothingFunSlider;
+
+
 	#region Variables
 	[Export] public int ParticleCount = 3000; 
 	[Export] public float mass = 1.0f;
 	[Export] public Gradient ParticleGardient;
-	
+	public float targetDensity = 4.0f;
+	public float pressureMultiplier = 50.0f;
 	private Rect2 screenRect;
 	private Rect2 spawnArea;
 
-	public float SmoothingRadius = 45.0f; 
+	public float SmoothingRadius = 10.0f; 
 
 	private Vector2[] positions;
 	private Vector2[] predictedPositions;
 	private float[] densities; 
 	private Vector2[] velocities;
 	private float particleRadius = 4f;
-	private float particleDamping = 0.6f;
+	public float particleDamping = 0.5f;
 
 	private float volume; 
 	private float scale;
 
-	private float targetDensity = 2.0f;
-	private float pressureMultiplier = 20.0f;
+	public float gravity = 350.0f;    // real-world gravity constant 
 
 	private float printTimer = 0f;
 	private float dt;
 
 	private float mouseForceRadius = 125f;
-	private float mouseForceStrength = 4500f;
+	private float mouseForceStrength = 2500f;
 
 	private Color[] cachedGradient = new Color[256];
 
@@ -78,6 +86,8 @@ public partial class Main : Node2D
 	#region Game Loops
 	public override void _Ready()
 	{
+		InitializeUI();
+
 		screenRect = GetViewportRect(); 
 		float padding = 20.0f; 
 
@@ -153,6 +163,9 @@ public partial class Main : Node2D
 		if (printTimer >= 1f)
 		{
 			GD.Print(Engine.GetFramesPerSecond());
+			// float avg = 0f;
+			// for (int i = 0; i < ParticleCount; i++) avg += densities[i];
+    		// 	GD.Print("avg density: " + avg / ParticleCount);
 			printTimer = 0f;
 		}
     }
@@ -165,7 +178,7 @@ public partial class Main : Node2D
 		// Calculate position predictions
 		Parallel.For(0, ParticleCount, i =>
 		{
-			// velocities[i].Y += 981f * dt; // Gravity
+			velocities[i].Y += gravity * dt; // Gravity
 			predictedPositions[i] = positions[i] + velocities[i] * dt;
 		});
 
@@ -180,6 +193,8 @@ public partial class Main : Node2D
 
 		Parallel.For(0, ParticleCount, i => 
 		{
+			if (densities[i] < float.Epsilon) return; // skip if no neighbors
+			
 			Vector2 pressureForce = ConvertDensityToPressure(i);
 			Vector2 pressureAcceleration = pressureForce / densities[i];
 			velocities[i] += pressureAcceleration * dt;
@@ -197,8 +212,10 @@ public partial class Main : Node2D
 		}
 
 		// Update positions
-		for (int i = 0; i < ParticleCount; i++) 
+		for (int i = 0; i < ParticleCount; i++)
 		{
+			velocities[i] = velocities[i].LimitLength(2000f); // cap max speed
+
 			positions[i] += velocities[i] * dt;
         	ResolveWallCollision(ref positions[i], ref velocities[i], particleRadius, particleDamping);
 		}
@@ -292,7 +309,7 @@ public partial class Main : Node2D
 				if (spatialLookup[i].CellKey != key) break; // Scanned all of this cells particles
 
 				int particleIndex = spatialLookup[i].ParticleIndex;
-				float sqrDst = (positions[particleIndex] - samplePoint).LengthSquared();
+				float sqrDst = (predictedPositions[particleIndex] - samplePoint).LengthSquared();
 
 				if (sqrDst <= sqrRadius)
 				{
@@ -423,4 +440,47 @@ public partial class Main : Node2D
 		return hash % (uint)spatialLookup.Length;
 	}
 	#endregion
+
+	public void RecalculateSmoothingConstants()
+	{
+		volume = (MathF.PI * MathF.Pow(SmoothingRadius, 4)) / 6.0f;
+		scale  =  12 / (MathF.Pow(SmoothingRadius, 4)) * MathF.PI;
+	}
+
+	public void InitializeUI()
+	{
+		if (TargetDSlider != null)
+        {
+            TargetDSlider.Value = targetDensity;
+            TargetDSlider.ValueChanged += (value) => targetDensity = (float)value;
+        }
+
+        if (PressureMSlider != null)
+        {
+            PressureMSlider.Value = pressureMultiplier;
+            PressureMSlider.ValueChanged += (value) => pressureMultiplier = (float)value;
+        }
+
+        if (GravitySlider != null)
+        {
+            GravitySlider.Value = gravity;
+            GravitySlider.ValueChanged += (value) => gravity = (float)value;
+        }
+
+        if (DampingSlider != null)
+        {
+            DampingSlider.Value = particleDamping;
+            DampingSlider.ValueChanged += (value) => particleDamping = (float)value;
+        }
+
+        if (SmoothingFunSlider != null)
+        {
+            SmoothingFunSlider.Value = SmoothingRadius;
+            SmoothingFunSlider.ValueChanged += (value) => 
+            {
+                SmoothingRadius = (float)value;
+                RecalculateSmoothingConstants(); // Need to recaculate!
+            };
+        }
+	}
 }
