@@ -3,13 +3,15 @@
 [ext_resource type="Script" uid="uid://5nx77odqh0tw" path="res://src/Main.cs" id="1_elqb8"]
 [ext_resource type="Gradient" uid="uid://ckumr1uytm4v0" path="res://resources/gradient.tres" id="2_rvslj"]
 
-[node name="Node2D" type="Node2D" unique_id=635007222 node_paths=PackedStringArray("TargetDSlider", "PressureMSlider", "GravitySlider", "DampingSlider", "SmoothingFunSlider")]
+[node name="Node2D" type="Node2D" unique_id=635007222 node_paths=PackedStringArray("TargetDSlider", "PressureMSlider", "NearPressureMSlider", "GravitySlider", "DampingSlider", "SmoothingFunSlider", "ViscositySlider")]
 script = ExtResource("1_elqb8")
 TargetDSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/TargetDSlider")
 PressureMSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/PressureMSlider")
+NearPressureMSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/NearPressureMSlider")
 GravitySlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/GravitySlider")
 DampingSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/DampingSlider")
 SmoothingFunSlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/SmoothingFunSlider")
+ViscositySlider = NodePath("CanvasLayer/HBoxContainer/VBoxContainer2/ViscositySlider")
 ParticleGardient = ExtResource("2_rvslj")
 
 [node name="FluidContainer" type="ReferenceRect" parent="." unique_id=345993181]
@@ -43,6 +45,11 @@ layout_mode = 2
 text = "Pressure Multiplier"
 expand_to_text_length = true
 
+[node name="NearPressureMLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=170320290]
+layout_mode = 2
+text = "Near Pressure Multiplier"
+expand_to_text_length = true
+
 [node name="GravityLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=423893660]
 layout_mode = 2
 text = "Gravity"
@@ -58,6 +65,11 @@ layout_mode = 2
 text = "Smoothing Radius"
 expand_to_text_length = true
 
+[node name="ViscosityLabel" type="LineEdit" parent="CanvasLayer/HBoxContainer/VBoxContainer" unique_id=1126664147]
+layout_mode = 2
+text = "Viscosity"
+expand_to_text_length = true
+
 [node name="VBoxContainer2" type="VBoxContainer" parent="CanvasLayer/HBoxContainer" unique_id=1921721001]
 layout_mode = 2
 
@@ -68,6 +80,12 @@ step = 0.1
 alignment = 2
 
 [node name="PressureMSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=854519221]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2
+
+[node name="NearPressureMSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=176323496]
 layout_mode = 2
 max_value = 1000000.0
 step = 0.1
@@ -86,6 +104,12 @@ step = 0.1
 alignment = 2
 
 [node name="SmoothingFunSlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=234801614]
+layout_mode = 2
+max_value = 1000000.0
+step = 0.1
+alignment = 2
+
+[node name="ViscositySlider" type="SpinBox" parent="CanvasLayer/HBoxContainer/VBoxContainer2" unique_id=1944879890]
 layout_mode = 2
 max_value = 1000000.0
 step = 0.1

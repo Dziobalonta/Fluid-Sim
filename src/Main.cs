@@ -7,17 +7,20 @@ public partial class Main : Node2D
 	[ExportGroup("UI Controls")]
 	[Export] public SpinBox TargetDSlider;
     [Export] public SpinBox PressureMSlider;
+	[Export] public SpinBox NearPressureMSlider;
     [Export] public SpinBox GravitySlider;
     [Export] public SpinBox DampingSlider;
     [Export] public SpinBox SmoothingFunSlider;
+	[Export] public SpinBox ViscositySlider;
 
 
 	#region Variables
 	[Export] public int ParticleCount = 3000; 
 	[Export] public float mass = 1.0f;
 	[Export] public Gradient ParticleGardient;
-	public float targetDensity = 5.0f;
-	public float pressureMultiplier = 50.0f;
+	public float targetDensity = 2.5f;
+	public float pressureMultiplier = 200.0f;
+	public float nearPressureMultiplier = 1.5f;
 	private Rect2 screenRect;
 	private Rect2 spawnArea;
 
@@ -25,15 +28,20 @@ public partial class Main : Node2D
 
 	private Vector2[] positions;
 	private Vector2[] predictedPositions;
-	private float[] densities; 
+	private float[] densities;
+	private float[] nearDensities;
 	private Vector2[] velocities;
 	private float particleRadius = 4f;
 	public float particleDamping = 0.5f;
 
-	private float volume; 
+	private float volume;
+	private float nearVolume;
+
 	private float scale;
 
-	public float gravity = 250.0f;    // real-world gravity constant 
+	public float viscosityStrength = 2.5f;
+	
+	public float gravity = 350.0f;
 
 	private float printTimer = 0f;
 	private float dt;
@@ -102,6 +110,7 @@ public partial class Main : Node2D
 		predictedPositions = new Vector2[ParticleCount];
 		velocities = new Vector2[ParticleCount];
 		densities = new float[ParticleCount];
+		nearDensities = new float[ParticleCount];
 
 		spatialLookup = new Entry[ParticleCount];
 		startIndices = new int[ParticleCount];
@@ -136,8 +145,7 @@ public partial class Main : Node2D
     	} 
 		
 		// Pre-calculating once a part of Smoothing Functions equation
-		volume =  ((MathF.PI * MathF.Pow(SmoothingRadius, 4)) / 6.0f);
-		scale =  (12 / (MathF.Pow(SmoothingRadius,4)) * MathF.PI);
+		RecalculateSmoothingConstants();
 
 		// Pre-bake random directions
 		randomDirs = new Vector2[256];
@@ -188,7 +196,10 @@ public partial class Main : Node2D
 		// Calculating physics
 		Parallel.For(0, ParticleCount, i => 
 		{
-			densities[i] = CalculateDensity(predictedPositions[i]); 
+			var result = CalculateDensity(predictedPositions[i]);
+			
+			densities[i] = result.density;
+			nearDensities[i] = result.nearDensity;
 		});
 
 		Parallel.For(0, ParticleCount, i => 
@@ -198,7 +209,12 @@ public partial class Main : Node2D
 			Vector2 pressureForce = ConvertDensityToPressure(i);
 			Vector2 pressureAcceleration = pressureForce / densities[i];
 			velocities[i] += pressureAcceleration * dt;
-		}); 
+		});
+
+		 Parallel.For(0, ParticleCount, i =>
+		{
+			velocities[i] += CalculateViscosityForce(i) * dt;
+		});
 
 		if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right))
 		{
@@ -286,12 +302,33 @@ public partial class Main : Node2D
 
 		return (dst - radius) * scale;
 	}
+
+		public float NearSmoothingFunction(float dst, float radius) 
+	{
+		float diff = radius - dst;
+		return diff * diff * diff / nearVolume; 
+	}
+
+	public float NearSmoothingFunctionDerivative(float dst, float radius) 
+	{
+		float diff = radius - dst;
+		// Pochodna z (R-r)^3 to -3(R-r)^2
+		return -3.0f * diff * diff / nearVolume;
+	}
+
+	public float ViscositySmoothingFunction(float dst, float radius) 
+	{
+		// if (dst >= radius) return 0; // caller already checked
+		
+		return (radius - dst) * (radius - dst) / volume; 
+	}
 	#endregion
 
 	#region Density and Pressure
-	public float CalculateDensity(Vector2 samplePoint) 
+	public (float density, float nearDensity) CalculateDensity(Vector2 samplePoint) 
 	{
-		float density = 0.0f; 
+		float density = 0.0f;
+		float nearDensity = 0.0f;
 
 	float sqrRadius = SmoothingRadius * SmoothingRadius;
 	(int centerX, int centerY) = PositionToCellCoord(samplePoint, SmoothingRadius);
@@ -315,12 +352,13 @@ public partial class Main : Node2D
 				{
 					float dst =  MathF.Sqrt(sqrDst);
 					float influence = SmoothingFunction(dst, SmoothingRadius); 
-					density += mass * influence; 
+					density += mass * influence;
+					nearDensity += mass * NearSmoothingFunction(dst, SmoothingRadius); // Dodane
 				}
 			}
 		}
 
-		return density; 
+		return (density, nearDensity); 
 	}
 
 	public Vector2 ConvertDensityToPressure(int particleIndex)
@@ -352,30 +390,88 @@ public partial class Main : Node2D
 				{
 					float dst = MathF.Sqrt(sqrDst);
 					Vector2 dir = (dst == 0) ? GetRandomDir(otherPart) : offset / dst;
-					float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
+
 					float density = densities[otherPart];
-					float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
-					pressureForce += sharedPressure * dir * slope * mass / density;
+					float nearDensity = nearDensities[otherPart];
+
+					// Dividing by zero case
+					if (density < float.Epsilon) density = float.Epsilon;
+					if (nearDensity < float.Epsilon) nearDensity = float.Epsilon;
+
+
+					float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
+					float nearSlope = NearSmoothingFunctionDerivative(dst, SmoothingRadius);
+
+					var shared = CalculateSharedPressure(density, nearDensity, densities[particleIndex], nearDensities[particleIndex]);
+					
+					pressureForce += shared.sharedPressure * dir * slope * mass / density;
+					pressureForce += shared.sharedNearPressure * dir * nearSlope * mass / nearDensity;
 				}
 			}
 		}
 		return pressureForce;
 	}
 
-	public float ConvertDensityToPressure(float density)
+	public (float pressure, float nearPressure) ConvertDensityToPressure(float density, float nearDensity)
 	{
 		float densityError = density - targetDensity;
-		float pressure = -densityError * pressureMultiplier;
-		return pressure;
+		float pressure = densityError * pressureMultiplier;
+		float nearPressure = nearDensity * nearPressureMultiplier * 50000;
+		return (pressure, nearPressure);
 	}
 
 	// Shared pressure method to simulate 3rd law of Motion
-	float CalculateSharedPressure(float densityA, float densityB)
+	(float sharedPressure, float sharedNearPressure) CalculateSharedPressure(float densityA, float nearDensityA, float densityB, float nearDensityB)
 	{
-		float pressureA = ConvertDensityToPressure(densityA);
-		float pressureB = ConvertDensityToPressure(densityB);
+		var pressureA = ConvertDensityToPressure(densityA, nearDensityA);
+		var pressureB = ConvertDensityToPressure(densityB, nearDensityB);
 
-		return (pressureA + pressureB) / 2; 
+		return (
+			(pressureA.pressure + pressureB.pressure) / 2f, 
+			(pressureA.nearPressure + pressureB.nearPressure) / 2f
+		); 
+	}
+
+	public Vector2 CalculateViscosityForce(int particleIndex)
+	{
+		Vector2 viscosityForce = Vector2.Zero;
+		Vector2 samplePoint = predictedPositions[particleIndex];
+		float sqrRadius = SmoothingRadius * SmoothingRadius;
+		(int centerX, int centerY) = PositionToCellCoord(samplePoint, SmoothingRadius);
+
+		foreach ((int offsetX, int offsetY) in cellOffsets)
+		{
+			uint key = GetKeyFromHash(HashCell(centerX + offsetX, centerY + offsetY));
+			int cellStartIndex = startIndices[key];
+
+			if (cellStartIndex == int.MaxValue) continue;
+
+			for (int i = cellStartIndex; i < spatialLookup.Length; i++)
+			{
+				if (spatialLookup[i].CellKey != key) break;
+
+				int otherIndex = spatialLookup[i].ParticleIndex;
+				if (otherIndex == particleIndex) continue;
+
+				float sqrDst = (predictedPositions[otherIndex] - samplePoint).LengthSquared();
+
+				if (sqrDst <= sqrRadius)
+				{
+					float dst = MathF.Sqrt(sqrDst);
+					float influence = ViscositySmoothingFunction(dst, SmoothingRadius);
+					// Get the neighbors density
+					float neighborDensity = densities[otherIndex];
+					
+					// Safety check to prevent dividing by zero
+					if (neighborDensity <= float.Epsilon) continue;
+
+					// Multiply by mass and divide by the neighbors density
+					viscosityForce += (velocities[otherIndex] - velocities[particleIndex]) * influence * mass / neighborDensity;
+				}
+			}
+		}
+
+		return viscosityForce * viscosityStrength;
 	}
 
 	#endregion
@@ -441,10 +537,12 @@ public partial class Main : Node2D
 	}
 	#endregion
 
+	#region Updating values via UI
 	public void RecalculateSmoothingConstants()
 	{
 		volume = (MathF.PI * MathF.Pow(SmoothingRadius, 4)) / 6.0f;
 		scale  =  12 / (MathF.Pow(SmoothingRadius, 4)) * MathF.PI;
+		nearVolume = (MathF.PI * MathF.Pow(SmoothingRadius, 5)) / 10.0f;
 	}
 
 	public void InitializeUI()
@@ -459,6 +557,12 @@ public partial class Main : Node2D
         {
             PressureMSlider.Value = pressureMultiplier;
             PressureMSlider.ValueChanged += (value) => pressureMultiplier = (float)value;
+        }
+
+		if (NearPressureMSlider != null)
+        {
+            NearPressureMSlider.Value = nearPressureMultiplier;
+            NearPressureMSlider.ValueChanged += (value) => nearPressureMultiplier = (float)value;
         }
 
         if (GravitySlider != null)
@@ -482,5 +586,12 @@ public partial class Main : Node2D
                 RecalculateSmoothingConstants(); // Need to recaculate!
             };
         }
+		if (ViscositySlider != null)
+        {
+            ViscositySlider.Value = viscosityStrength;
+            ViscositySlider.ValueChanged += (value) => viscosityStrength = (float)value;
+        }
 	}
+	#endregion
 }
+
