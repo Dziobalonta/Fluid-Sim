@@ -21,6 +21,8 @@ public partial class Main : Node2D
 	public float targetDensity = 2.5f;
 	public float pressureMultiplier = 200.0f;
 	public float nearPressureMultiplier = 1.5f;
+
+	private float scaledNearPM;
 	private Rect2 screenRect;
 	private Rect2 spawnArea;
 
@@ -184,11 +186,11 @@ public partial class Main : Node2D
 		dt = (float) delta;
 
 		// Calculate position predictions
-		Parallel.For(0, ParticleCount, i =>
-		{
-			velocities[i].Y += gravity * dt; // Gravity
+		float gravityDt = gravity * dt;
+		for (int i = 0; i < ParticleCount; i++) {
+			velocities[i].Y += gravityDt;
 			predictedPositions[i] = positions[i] + velocities[i] * dt;
-		});
+		}
 
 		// Updating Spatial Grid BEFORE physics calculations
 		UpdateSpatialLookup();
@@ -230,19 +232,21 @@ public partial class Main : Node2D
 		// Update positions
 		for (int i = 0; i < ParticleCount; i++)
 		{
-			velocities[i] = velocities[i].LimitLength(2000f); // cap max speed
+			// Cap max speed
+			const float maxSq = 2000f * 2000f;
+			float speedSq = velocities[i].LengthSquared();
+			if (speedSq > maxSq)
+				velocities[i] *= 2000f / MathF.Sqrt(speedSq); // sqrt only when actually needed
 
 			positions[i] += velocities[i] * dt;
         	ResolveWallCollision(ref positions[i], ref velocities[i], particleRadius, particleDamping);
-		}
 
-		for (int i = 0; i < ParticleCount; i++)
-		{
 			float speed = velocities[i].Length();
 			int colorIndex = (int) Math.Clamp((speed / 500f) * 255f, 0, 255);
 			multiMesh.SetInstanceTransform2D(i, new Transform2D(0, positions[i]));
 			multiMesh.SetInstanceColor(i, cachedGradient[colorIndex]);
 		}
+
 	}
 	#endregion
 
@@ -416,7 +420,7 @@ public partial class Main : Node2D
 	{
 		float densityError = density - targetDensity;
 		float pressure = densityError * pressureMultiplier;
-		float nearPressure = nearDensity * nearPressureMultiplier * 50000;
+		float nearPressure = nearDensity * scaledNearPM;
 		return (pressure, nearPressure);
 	}
 
@@ -543,6 +547,8 @@ public partial class Main : Node2D
 		volume = (MathF.PI * MathF.Pow(SmoothingRadius, 4)) / 6.0f;
 		scale  =  12 / (MathF.Pow(SmoothingRadius, 4)) * MathF.PI;
 		nearVolume = (MathF.PI * MathF.Pow(SmoothingRadius, 5)) / 10.0f;
+		
+		scaledNearPM = nearPressureMultiplier * 50000f;
 	}
 
 	public void InitializeUI()
