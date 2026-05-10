@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 public partial class Main : Node2D
 {
 	#region Variables
-	[Export] public int ParticleCount = 300; 
+	[Export] public int ParticleCount = 3000; 
 	[Export] public float mass = 1.0f;
 	[Export] public Gradient ParticleGardient;
 	
@@ -18,28 +18,35 @@ public partial class Main : Node2D
 	private Vector2[] predictedPositions;
 	private float[] densities; 
 	private Vector2[] velocities;
-	private float particleRadius = 7f;
+	private float particleRadius = 4f;
 	private float particleDamping = 0.6f;
 
 	private float volume; 
 	private float scale;
 
-	private float targetDensity = 1.0f;
-	private float pressureMultiplier = 10.0f;
+	private float targetDensity = 2.0f;
+	private float pressureMultiplier = 20.0f;
 
 	private float printTimer = 0f;
 	private float dt;
+
+	private float mouseForceRadius = 125f;
+	private float mouseForceStrength = 4500f;
+
+	private Color[] cachedGradient = new Color[256];
+
+	private Vector2[] randomDirs;
+	Vector2 GetRandomDir(int seed) => randomDirs[seed & 255]; // faster way of doing seed % 256
+
+	private MultiMesh multiMesh;
+	private MultiMeshInstance2D multiMeshInstance;
+
 	// Grid Optimization Variables
 	private Entry[] spatialLookup;
 	private int[] startIndices;
 
 	private int[] counts;
 	private Entry[] sortBuffer;
-
-	private float mouseForceRadius = 125f;
-	private float mouseForceStrength = 4500f;
-
-	private Color[] cachedGradient = new Color[256];
 
 	// The 9 neighbor cells (including the center cell) to search
 	private readonly (int x, int y)[] cellOffsets = {
@@ -92,22 +99,47 @@ public partial class Main : Node2D
 		counts = new int[ParticleCount];
 		sortBuffer = new Entry[ParticleCount];
 
+        multiMesh = new MultiMesh
+        {
+            TransformFormat = MultiMesh.TransformFormatEnum.Transform2D,
+            UseColors = true,
+            InstanceCount = ParticleCount,
+            Mesh = new QuadMesh
+            {
+                Size = new Vector2(particleRadius * 2, particleRadius * 2)  // 2x particle radius - diameter
+            }
+        };
+
+        multiMeshInstance = new MultiMeshInstance2D {
+            Multimesh = multiMesh
+        };
+        AddChild(multiMeshInstance);
+
+		var shader = GD.Load<Shader>("res://shaders/particle.gdshader");
+		var mat = new ShaderMaterial();
+		mat.Shader = shader;
+		multiMeshInstance.Material = mat;
+
 		// Pre-cache the gradient
 		for (int i = 0; i < 256; i++) {
         	cachedGradient[i] = ParticleGardient.Sample(i / 255f);
     	} 
 		
-		// Pre-calculating once a part of Smooting Function's equation
-		volume = (float) ((Math.PI * Math.Pow(SmoothingRadius, 4)) / 6.0f);
-		scale = (float) (12 / (Math.Pow(SmoothingRadius,4)) * Math.PI);
+		// Pre-calculating once a part of Smoothing Functions equation
+		volume =  ((MathF.PI * MathF.Pow(SmoothingRadius, 4)) / 6.0f);
+		scale =  (12 / (MathF.Pow(SmoothingRadius,4)) * MathF.PI);
+
+		// Pre-bake random directions
+		randomDirs = new Vector2[256];
+		for (int i = 0; i < 256; i++)
+			randomDirs[i] = Vector2.FromAngle(i / 256f * MathF.Tau);
 
 		// Spawn all particles
+		Random rand = Random.Shared;
 		for (int i = 0; i < ParticleCount; i++)
 		{		
-			Random rand = Random.Shared;
-
-			float randX = spawnArea.Position.X + (float)rand.NextDouble() * spawnArea.Size.X;
-			float randY = spawnArea.Position.Y + (float)rand.NextDouble() * spawnArea.Size.Y;
+			float randX = spawnArea.Position.X + (float) rand.NextDouble() * spawnArea.Size.X;
+			float randY = spawnArea.Position.Y + (float) rand.NextDouble() * spawnArea.Size.Y;
 			
 			positions[i] = new Vector2(randX, randY);
 			velocities[i] = Vector2.Zero;
@@ -117,7 +149,7 @@ public partial class Main : Node2D
 
     public override void _Process(double delta)
     {
-		printTimer += (float)delta;
+		printTimer += (float) delta;
 		if (printTimer >= 1f)
 		{
 			GD.Print(Engine.GetFramesPerSecond());
@@ -128,12 +160,12 @@ public partial class Main : Node2D
 
 	public override void _PhysicsProcess(double delta)
 	{
-		dt = (float)delta;
+		dt = (float) delta;
 
 		// Calculate position predictions
 		Parallel.For(0, ParticleCount, i =>
 		{
-			// particles[i].Velocity.Y += 981f * dt; // Gravity
+			// velocities[i].Y += 981f * dt; // Gravity
 			predictedPositions[i] = positions[i] + velocities[i] * dt;
 		});
 
@@ -171,15 +203,12 @@ public partial class Main : Node2D
         	ResolveWallCollision(ref positions[i], ref velocities[i], particleRadius, particleDamping);
 		}
 
-		QueueRedraw();
-	}
-	public override void _Draw()
-	{
 		for (int i = 0; i < ParticleCount; i++)
 		{
-			float speed = velocities[i].Length(); // (See point 2 about velocities)
-			int colorIndex = (int)Math.Clamp((speed / 500f) * 255f, 0, 255);
-			DrawCircle(positions[i], 7f, cachedGradient[colorIndex]);
+			float speed = velocities[i].Length();
+			int colorIndex = (int) Math.Clamp((speed / 500f) * 255f, 0, 255);
+			multiMesh.SetInstanceTransform2D(i, new Transform2D(0, positions[i]));
+			multiMesh.SetInstanceColor(i, cachedGradient[colorIndex]);
 		}
 	}
 	#endregion
@@ -193,7 +222,7 @@ public partial class Main : Node2D
 
 		if (sqrDst < radius * radius)
 		{
-			float dst = (float) Math.Sqrt(sqrDst);
+			float dst =  MathF.Sqrt(sqrDst);
 			Vector2 dirToInputPoint = dst <= float.Epsilon ? Vector2.Zero : offset / dst;
 			float centreT = 1 - dst / radius;
 			interactionForce += (dirToInputPoint * strength - velocities[particleIndex]) * centreT;
@@ -229,14 +258,14 @@ public partial class Main : Node2D
 	#region Smoothing Functions
 	public float SmoothingFunction(float dst, float radius) 
 	{
-		if (dst >= radius) return 0; 
+		// if (dst >= radius) return 0; // caller already checked
 		
 		return (radius - dst) * (radius - dst) / volume; 
 	}
 
 	public float SmoothingFunctionDerivative(float dst, float radius) 
 	{
-		if (dst >= radius) return 0; 
+		// if (dst >= radius) return 0; // caller already checked
 
 		return (dst - radius) * scale;
 	}
@@ -267,7 +296,7 @@ public partial class Main : Node2D
 
 				if (sqrDst <= sqrRadius)
 				{
-					float dst = (float) Math.Sqrt(sqrDst);
+					float dst =  MathF.Sqrt(sqrDst);
 					float influence = SmoothingFunction(dst, SmoothingRadius); 
 					density += mass * influence; 
 				}
@@ -304,8 +333,8 @@ public partial class Main : Node2D
 
 				if (sqrDst <= sqrRadius)
 				{
-					float dst = (float) Math.Sqrt(sqrDst);
-					Vector2 dir = (dst == 0) ? GetRandomDir() : offset / dst;
+					float dst = MathF.Sqrt(sqrDst);
+					Vector2 dir = (dst == 0) ? GetRandomDir(otherPart) : offset / dst;
 					float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
 					float density = densities[otherPart];
 					float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
@@ -313,39 +342,6 @@ public partial class Main : Node2D
 				}
 			}
 		}
-		return pressureForce;
-	}
-
-	Vector2 CalculatePressureForce(int particleIndex)
-	{
-		Vector2 pressureForce = Vector2.Zero;
-
-		for (int otherPart = 0; otherPart < ParticleCount; otherPart++)
-		{
-			if(particleIndex == otherPart) continue;
-			Vector2 offset = positions[otherPart] - positions[particleIndex];
-
-			float sqrDst = offset.LengthSquared();
-
-			if (sqrDst > 0)
-			{
-				float dst = (float)Math.Sqrt(sqrDst);
-				Vector2 dir = offset / dst;
-				float slope = SmoothingFunctionDerivative(dst, SmoothingRadius);
-				float density = densities[otherPart];
-				float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
-				pressureForce += sharedPressure * dir * slope * mass / density;
-			}
-			else
-			{
-				Vector2 dir = GetRandomDir();
-				float slope = SmoothingFunctionDerivative(0, SmoothingRadius);
-				float density = densities[otherPart];
-				float sharedPressure = CalculateSharedPressure(density, densities[particleIndex]);
-				pressureForce += sharedPressure * dir * slope * mass / density;
-			}
-		}
-
 		return pressureForce;
 	}
 
@@ -366,11 +362,6 @@ public partial class Main : Node2D
 	}
 
 	#endregion
-
-	Vector2 GetRandomDir()
-	{
-		return Vector2.FromAngle((float)Random.Shared.NextDouble() * (float) Math.Tau);
-	}
 
 	#region Grid Optimization
 	public void UpdateSpatialLookup()
